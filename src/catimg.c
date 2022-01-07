@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
         loops = 0;
     }
     // Save the cursor position and hide it
-    printf("\e[s\e[?25l");
+    if (!convert) printf("\e[s\e[?25l");
     while (loop++ < loops || loops < 0) {
         uint32_t offset = 0;
         for (uint32_t frame = 0; frame < img.frames; frame++) {
@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
             }
             uint32_t index, x, y;
             for (y = 0; y < img.height; y += precision) {
+                uint8_t rle = 0;
                 for (x = 0; x < img.width; x++) {
                     index = y * img.width + x + offset;
                     const color_t* upperPixel = &img.pixels[index];
@@ -228,7 +229,24 @@ int main(int argc, char *argv[])
                                     printf("\e[38;5;%um\u2580", fgCol);
                         }
                     } else {
-                        if (img.pixels[index].a < TRANSP_ALPHA)
+                        if (convert) {
+                            uint8_t awoo = upperPixel->b;
+                            if (img.pixels[index].a < TRANSP_ALPHA) awoo = 99;
+                            if (rle != awoo) {
+                                rle = awoo;
+                                if (awoo == 99) {
+                                    printf("\e[39m\e[49m", awoo);
+                                } else {
+                                    printf("\e[%u%um", upperPixel->r, upperPixel->g);
+                                }
+                            }
+
+                            if (awoo == 99 || upperPixel->r == 4) {
+                                printf("  ");
+                            } else {
+                                printf("\u2588\u2588");
+                            }
+                        } else if (img.pixels[index].a < TRANSP_ALPHA)
                             printf("\e[m  ");
                         else
                             if (true_color)
@@ -238,14 +256,15 @@ int main(int argc, char *argv[])
                                 printf("\e[48;5;%um  ", fgCol);
                     }
                 }
-                printf("\e[m\n");
+                if (!convert) printf("\e[m");
+                printf("\n");
             }
             offset += img.width * img.height;
             if (stop) frame = img.frames;
         }
     }
     // Display the cursor again
-    printf("\e[?25h");
+    if (!convert) printf("\e[?25h");
 
     img_free(&img);
     free_hash_colors();
