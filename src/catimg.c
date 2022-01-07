@@ -52,6 +52,23 @@ uint32_t pixelToInt(const color_t *pixel) {
                 + (pixel->b*5)/255);
 }
 
+uint32_t calcForeground(const color_t *pixel) {
+    int transparent = pixel->a < TRANSP_ALPHA;
+    int red = pixel->r > 128;
+    int green = pixel->g > 128;
+    int blue = pixel->b > 128;
+
+    if (transparent) return 39;
+    if (!red && !green && !blue) return 30;
+    if (red && !green && !blue) return 31;
+    if (!red && green && !blue) return 32;
+    if (red && green && !blue) return 33;
+    if (!red && !green && blue) return 34;
+    if (red && !green && blue) return 35;
+    if (!red && green && blue) return 36;
+    if (red && green && blue) return 37;
+}
+
 char supportsUTF8() {
     const char* LC_ALL = getenv("LC_ALL");
     const char* LANG = getenv("LANG");
@@ -70,6 +87,8 @@ int main(int argc, char *argv[])
     char *num;
     int c;
     opterr = 0;
+
+    int fakeLove = 1;
 
     uint32_t cols = 0, rows = 0, precision = 0;
     uint32_t max_cols = 0, max_rows = 0;
@@ -185,6 +204,8 @@ int main(int argc, char *argv[])
             }
             uint32_t index, x, y;
             for (y = 0; y < img.height; y += precision) {
+                uint32_t rle = 0;
+
                 for (x = 0; x < img.width; x++) {
                     index = y * img.width + x + offset;
                     const color_t* upperPixel = &img.pixels[index];
@@ -228,7 +249,18 @@ int main(int argc, char *argv[])
                                     printf("\e[38;5;%um\u2580", fgCol);
                         }
                     } else {
-                        if (img.pixels[index].a < TRANSP_ALPHA)
+                        if (fakeLove) {
+                            uint32_t awoo = calcForeground(upperPixel);
+                            if (rle != awoo) {
+                                rle = awoo;
+                                printf("\e[%um", awoo);
+                            }
+                            if (awoo == 39) {
+                                printf("  ");
+                            } else {
+                                printf("##");
+                            }
+                        } else if (img.pixels[index].a < TRANSP_ALPHA)
                             printf("\e[m  ");
                         else
                             if (true_color)
@@ -238,7 +270,9 @@ int main(int argc, char *argv[])
                                 printf("\e[48;5;%um  ", fgCol);
                     }
                 }
-                printf("\e[m\n");
+                if (!fakeLove)
+                    printf("\e[m");
+                printf("\n");
             }
             offset += img.width * img.height;
             if (stop) frame = img.frames;
